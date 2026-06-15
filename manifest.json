@@ -1,0 +1,24 @@
+{
+  "name": "TikTok Quality Enhancer",
+  "short_name": "TQE",
+  "description": "Optimize video quality for TikTok uploads",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060606",
+  "theme_color": "#060606",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
