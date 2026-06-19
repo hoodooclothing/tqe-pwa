@@ -111,6 +111,35 @@ const $bottomNav = document.getElementById('bottomNav');
 const $exportBtn = document.getElementById('exportBtn');
 const $clearBtn = document.getElementById('clearBtn');
 
+// Patcher
+const $patcherFileZone = document.getElementById('patcherFileZone');
+const $patcherFileInput = document.getElementById('patcherFileInput');
+const $patcherFileInfoRow = document.getElementById('patcherFileInfoRow');
+const $patcherFileName = document.getElementById('patcherFileName');
+const $patcherFileSize = document.getElementById('patcherFileSize');
+const $patcherQuality = document.getElementById('patcherQuality');
+const $patcherResolution = document.getElementById('patcherResolution');
+const $patcherFps = document.getElementById('patcherFps');
+const $patcherConvertBtn = document.getElementById('patcherConvertBtn');
+const $patcherProgressCard = document.getElementById('patcherProgressCard');
+const $patcherProgressFill = document.getElementById('patcherProgressFill');
+const $patcherProgressPct = document.getElementById('patcherProgressPct');
+const $patcherProgressStatus = document.getElementById('patcherProgressStatus');
+const $patcherProgressEta = document.getElementById('patcherProgressEta');
+const $patcherProgressFileInfo = document.getElementById('patcherProgressFileInfo');
+const $patcherErrorBox = document.getElementById('patcherErrorBox');
+const $patcherResultCard = document.getElementById('patcherResultCard');
+const $patcherStatCodec = document.getElementById('patcherStatCodec');
+const $patcherStatSize = document.getElementById('patcherStatSize');
+const $patcherStatTime = document.getElementById('patcherStatTime');
+const $patcherSizeCompare = document.getElementById('patcherSizeCompare');
+const $patcherDownloadBtn = document.getElementById('patcherDownloadBtn');
+const $patcherResetBtn = document.getElementById('patcherResetBtn');
+const $pqiCrf = document.getElementById('pqiCrf');
+const $pqiMaxrate = document.getElementById('pqiMaxrate');
+const $pqiPreset = document.getElementById('pqiPreset');
+const $pqiAudio = document.getElementById('pqiAudio');
+
 // --- State ---
 
 let currentFile = null;       // { file: File, data: Uint8Array }
@@ -118,6 +147,12 @@ let resultBlob = null;        // Blob of processed output
 let resultFileName = '';      // Output file name
 let processStartTime = 0;
 let keyTimerInterval = null;
+
+// Patcher state
+let patcherFile = null;
+let patcherResultBlob = null;
+let patcherResultFileName = '';
+let patcherStartTime = 0;
 
 // --- Device ID ---
 
@@ -630,6 +665,188 @@ function resetUI() {
   setTopbarStatus('idle', 'Ready');
 }
 
+// --- Patcher ---
+
+const PATCHER_PRESETS = {
+  balanced: { crf: '19', maxrate: '15 Mbps', preset: 'veryfast', audio: 'AAC 256k' },
+  high: { crf: '17', maxrate: '25 Mbps', preset: 'fast', audio: 'AAC 320k' },
+  ultra: { crf: '15', maxrate: '40 Mbps', preset: 'medium', audio: 'AAC 320k' },
+};
+
+function updatePatcherQualityInfo() {
+  const quality = getActivePill($patcherQuality);
+  const info = PATCHER_PRESETS[quality] || PATCHER_PRESETS.high;
+  $pqiCrf.textContent = info.crf;
+  $pqiMaxrate.textContent = info.maxrate;
+  $pqiPreset.textContent = info.preset;
+  $pqiAudio.textContent = info.audio;
+}
+
+function handlePatcherFileSelect(file) {
+  if (!file) return;
+  const MAX = 250 * 1024 * 1024;
+  if (file.size > MAX) {
+    patcherShowError(`File too large (${formatSize(file.size)}). Maximum is 250 MB.`);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    patcherFile = { file, data: new Uint8Array(reader.result) };
+    $patcherFileInfoRow.hidden = false;
+    $patcherFileName.textContent = file.name;
+    $patcherFileSize.textContent = formatSize(file.size);
+    $patcherConvertBtn.hidden = false;
+    $patcherErrorBox.hidden = true;
+    $patcherResultCard.hidden = true;
+    $patcherFileZone.querySelector('.file-zone-text').textContent = file.name;
+    $patcherFileZone.querySelector('.file-zone-hint').textContent = formatSize(file.size);
+  };
+  reader.onerror = () => patcherShowError('Failed to read file');
+  reader.readAsArrayBuffer(file);
+}
+
+async function startPatcherConversion() {
+  if (!patcherFile) return;
+
+  $patcherConvertBtn.hidden = true;
+  $patcherErrorBox.hidden = true;
+  $patcherResultCard.hidden = true;
+  $patcherProgressCard.hidden = false;
+  $patcherProgressFill.style.width = '0%';
+  $patcherProgressPct.textContent = '0%';
+  $patcherProgressStatus.textContent = 'Loading FFmpeg...';
+  $patcherProgressEta.textContent = '';
+  $patcherProgressFileInfo.textContent = `${patcherFile.file.name} (${formatSize(patcherFile.file.size)})`;
+
+  patcherStartTime = Date.now();
+  setTopbarStatus('processing', 'Converting video...');
+
+  setProgressCallback((progress) => {
+    const pct = Math.round(progress * 100);
+    $patcherProgressFill.style.width = pct + '%';
+    $patcherProgressPct.textContent = pct + '%';
+
+    if (progress < 0.05) $patcherProgressStatus.textContent = 'Loading FFmpeg...';
+    else if (progress < 0.10) $patcherProgressStatus.textContent = 'Analyzing video...';
+    else if (progress < 0.90) $patcherProgressStatus.textContent = 'Encoding...';
+    else if (progress < 0.96) $patcherProgressStatus.textContent = 'Scoring quality...';
+    else $patcherProgressStatus.textContent = 'Finalizing...';
+
+    if (progress > 0.05 && progress < 1.0) {
+      const elapsed = Date.now() - patcherStartTime;
+      const total = elapsed / progress;
+      const remaining = total - elapsed;
+      if (remaining > 1000) {
+        const secs = Math.round(remaining / 1000);
+        if (secs >= 60) {
+          const mins = Math.floor(secs / 60);
+          $patcherProgressEta.textContent = `~${mins}m ${secs % 60}s remaining`;
+        } else {
+          $patcherProgressEta.textContent = `~${secs}s remaining`;
+        }
+      }
+    }
+  });
+
+  try {
+    const settings = {
+      isPatcher: true,
+      processMode: 'reencode',
+      qualityPreset: getActivePill($patcherQuality),
+      fpsTarget: getActivePill($patcherFps),
+      targetResolution: getActivePill($patcherResolution),
+    };
+
+    const result = await processVideo(patcherFile.data, patcherFile.file.name, settings);
+
+    if (result.success) {
+      setTopbarStatus('done', 'Conversion complete');
+      showPatcherResult(result);
+      addToHistory(result, true);
+    } else {
+      setTopbarStatus('error', 'Conversion failed');
+      patcherShowError(result.error || 'Conversion failed');
+      $patcherProgressCard.hidden = true;
+    }
+  } catch (err) {
+    setTopbarStatus('error', 'Conversion failed');
+    patcherShowError(err.message || 'Conversion failed');
+    $patcherProgressCard.hidden = true;
+  }
+}
+
+function showPatcherResult(result) {
+  $patcherProgressCard.hidden = true;
+
+  const origName = patcherFile.file.name;
+  const dotIdx = origName.lastIndexOf('.');
+  const baseName = dotIdx > 0 ? origName.substring(0, dotIdx) : origName;
+  patcherResultFileName = baseName + '_patched.mp4';
+
+  patcherResultBlob = new Blob([result.outputData], { type: 'video/mp4' });
+
+  $patcherStatCodec.textContent = 'H.264';
+  $patcherStatSize.textContent = formatSize(result.processedSize);
+
+  const secs = Math.round(result.processingTime / 1000);
+  $patcherStatTime.textContent = secs >= 60
+    ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's'
+    : secs + 's';
+
+  const originalSize = patcherFile.file.size;
+  const processedSize = result.processedSize;
+  const reduction = originalSize > 0 ? ((1 - processedSize / originalSize) * 100).toFixed(1) : 0;
+  const arrow = processedSize < originalSize ? '\u2193' : '\u2191';
+  $patcherSizeCompare.innerHTML = `
+    <span class="size-original">${formatSize(originalSize)}</span>
+    <span class="size-arrow">\u2192</span>
+    <span class="size-processed">${formatSize(processedSize)}</span>
+    <span class="size-reduction">${arrow} ${Math.abs(reduction)}%</span>
+  `;
+
+  $patcherResultCard.hidden = false;
+}
+
+function patcherDownload() {
+  if (!patcherResultBlob) return;
+  const url = URL.createObjectURL(patcherResultBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = patcherResultFileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+  const count = parseInt(localStorage.getItem(DOWNLOADS_KEY) || '0', 10) + 1;
+  localStorage.setItem(DOWNLOADS_KEY, String(count));
+}
+
+function patcherShowError(msg) {
+  $patcherErrorBox.textContent = msg;
+  $patcherErrorBox.hidden = false;
+  $patcherProgressCard.hidden = true;
+}
+
+function resetPatcherUI() {
+  patcherFile = null;
+  patcherResultBlob = null;
+  patcherResultFileName = '';
+
+  $patcherFileInput.value = '';
+  $patcherFileInfoRow.hidden = true;
+  $patcherConvertBtn.hidden = true;
+  $patcherProgressCard.hidden = true;
+  $patcherErrorBox.hidden = true;
+  $patcherResultCard.hidden = true;
+
+  $patcherFileZone.querySelector('.file-zone-text').textContent = 'Tap to select a video';
+  $patcherFileZone.querySelector('.file-zone-hint').textContent = 'Supports MP4, MOV, MKV, WebM, AVI';
+
+  setTopbarStatus('idle', 'Ready');
+}
+
 // --- Processing History ---
 
 function getHistory() {
@@ -646,10 +863,11 @@ function saveHistory(history) {
 
 function addToHistory(result, success) {
   const history = getHistory();
+  const activeFile = currentFile || patcherFile;
   const entry = {
-    fileName: currentFile ? currentFile.file.name : 'unknown',
+    fileName: activeFile ? activeFile.file.name : 'unknown',
     mode: result.processMode || 'auto',
-    originalSize: currentFile ? currentFile.file.size : 0,
+    originalSize: activeFile ? activeFile.file.size : 0,
     processedSize: result.processedSize || 0,
     processingTime: result.processingTime || (Date.now() - processStartTime),
     success,
@@ -843,6 +1061,9 @@ async function init() {
 
   // Animate quick stats on load
   animateQuickStats();
+
+  // Init patcher quality info display
+  updatePatcherQualityInfo();
 }
 
 function unlockApp(status) {
@@ -928,6 +1149,18 @@ function bindEvents() {
       clearHistory();
     }
   });
+
+  // Patcher
+  $patcherFileZone.addEventListener('click', () => $patcherFileInput.click());
+  $patcherFileInput.addEventListener('change', () => {
+    if ($patcherFileInput.files.length > 0) handlePatcherFileSelect($patcherFileInput.files[0]);
+  });
+  bindPillGroup($patcherQuality, updatePatcherQualityInfo);
+  bindPillGroup($patcherResolution);
+  bindPillGroup($patcherFps);
+  $patcherConvertBtn.addEventListener('click', startPatcherConversion);
+  $patcherDownloadBtn.addEventListener('click', patcherDownload);
+  $patcherResetBtn.addEventListener('click', resetPatcherUI);
 
   // Copy hashtags button
   const $copyTagsBtn = document.getElementById('copyTagsBtn');

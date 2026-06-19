@@ -170,6 +170,17 @@ export function buildReencodeArgs(inputFile, outputFile, info = {}, settings = {
     vFilters.push('pad=ceil(iw/2)*2:ceil(ih/2)*2');
   }
 
+  // Force target resolution (for Patcher)
+  if (settings.targetResolution === '720p' && width > 0 && height > 0) {
+    vFilters.length = 0;
+    if (width >= height) {
+      vFilters.push(`scale=min(1280\\,iw):min(720\\,ih):force_original_aspect_ratio=decrease:flags=lanczos`);
+    } else {
+      vFilters.push(`scale=min(720\\,iw):min(1280\\,ih):force_original_aspect_ratio=decrease:flags=lanczos`);
+    }
+    vFilters.push('pad=ceil(iw/2)*2:ceil(ih/2)*2');
+  }
+
   if (vFilters.length > 0) {
     args.push('-vf', vFilters.join(','));
   }
@@ -178,7 +189,7 @@ export function buildReencodeArgs(inputFile, outputFile, info = {}, settings = {
   // Uploading at exactly 60fps gives the best chance TikTok serves 60fps.
   // 120fps is non-standard and TikTok typically drops it to 30fps.
   const sourceFps = info.fps || 30;
-  const targetFps = fpsTarget === '120' ? 120 : fpsTarget === '60' ? 60 : 0;
+  const targetFps = fpsTarget === '120' ? 120 : fpsTarget === '60' ? 60 : fpsTarget === '30' ? 30 : 0;
 
   if (targetFps > 0 && sourceFps < targetFps) {
     args.push('-r', String(targetFps));

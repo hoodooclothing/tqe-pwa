@@ -1495,6 +1495,55 @@ select option { background: var(--card); color: var(--t1); }
   }
 }
 
+/* ======== PATCHER PAGE ======== */
+.patcher-desc {
+  font-size: 13px;
+  color: var(--t2);
+  line-height: 1.5;
+}
+
+.patcher-output-badge {
+  display: inline-flex;
+  padding: 6px 14px;
+  background: var(--green-d);
+  border: 1px solid rgba(30, 215, 96, .2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green);
+  letter-spacing: .5px;
+}
+
+.patcher-quality-info {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-s);
+}
+
+.pqi-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pqi-row:last-child { border-bottom: none; }
+
+.pqi-key {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t3);
+}
+
+.pqi-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ======== RELOAD BANNER ======== */
 .reload-banner {
   position: fixed;
