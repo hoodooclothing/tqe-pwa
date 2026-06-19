@@ -255,6 +255,12 @@ function updateKeyStatusBar(status) {
       $keyStatusLabel.textContent = 'Key Expired';
       $keyStatusTimer.textContent = '';
       clearInterval(keyTimerInterval);
+      // Lock the user out immediately
+      $mainApp.hidden = true;
+      $lockScreen.hidden = false;
+      $keyHint.textContent = 'Your key has expired';
+      $keyHint.className = 'lock-hint error';
+      $keyInput.value = '';
       return;
     }
     const hours = Math.floor(remaining / 3600000);

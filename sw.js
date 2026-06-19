@@ -6,7 +6,7 @@
  * 2. App shell caching for offline support
  */
 
-const CACHE_NAME = 'tqe-pwa-v8';
+const CACHE_NAME = 'tqe-pwa-v9';
 
 const APP_SHELL = [
   './',
